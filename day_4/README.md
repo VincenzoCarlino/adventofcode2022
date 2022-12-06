@@ -4,3 +4,7 @@
 
 ## Cli args
 * input path
+* puzzle option: A | B.
+
+### Disclaimer:
+Using a sweep line approach is a bit an overengineering following to puzzle input, but I do this just for fun.
