@@ -3,6 +3,8 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+use crate::giant_cargo_crane::CrateMoverModel;
+
 /// From a string get an array of all numbers.
 /// Eg: "move 14 from 3 to 4" => [14,3,4].
 fn get_numbers_from_string(input: &str) -> Vec<u8> {
@@ -13,7 +15,7 @@ fn get_numbers_from_string(input: &str) -> Vec<u8> {
 }
 
 /// Read moves from a file and apply them to Stacks.
-fn make_moves(reader: &mut impl BufRead, stacks: &mut GiantCargoCrane::Stacks<char>) {
+fn make_moves(reader: &mut impl BufRead, stacks: &mut giant_cargo_crane::Stacks<char>) {
     for line in reader.lines().map(|l| l.unwrap()) {
         if line.is_empty() || line.chars().nth(0).unwrap() != 'm' {
             continue;
@@ -37,26 +39,44 @@ fn main() {
         .nth(1)
         .expect("You have to pass input file.");
 
+    let puzzle_option = std::env::args()
+        .nth(2)
+        .expect("You have to pass puzzle option. Available values are: A | B.");
+
     // Retrieve file.
     let file = File::open(&path).expect(&format!("Unable to find file: {}", &path));
     let mut reader = BufReader::new(file);
-    let mut stacks = GiantCargoCrane::Stacks::<char>::generate(&mut reader);
+
+    let crate_mover_model = match puzzle_option.as_str() {
+        "A" => CrateMoverModel::M9000,
+        "B" => CrateMoverModel::M9001,
+        _ => panic!("Available values for puzzle option are: A | B."),
+    };
+    let mut stacks = giant_cargo_crane::Stacks::<char>::generate(&mut reader, crate_mover_model);
+
     make_moves(&mut reader, &mut stacks);
 
     println!("{:?}", stacks.get_top_of_each_stack());
 }
 
-mod GiantCargoCrane {
+mod giant_cargo_crane {
     use regex::Regex;
     use std::{collections::HashMap, io::BufRead};
 
+    #[derive(PartialEq, Eq)]
+    pub enum CrateMoverModel {
+        M9000,
+        M9001,
+    }
+
     pub struct Stacks<T> {
         stacks: HashMap<u8, Vec<T>>,
+        crate_mover_model: CrateMoverModel,
     }
 
     impl Stacks<char> {
         /// Create stacks from a reader.
-        pub fn generate(reader: &mut impl BufRead) -> Self {
+        pub fn generate(reader: &mut impl BufRead, crate_mover_model: CrateMoverModel) -> Self {
             let mut stacks_map: HashMap<u8, Vec<char>> = HashMap::new();
 
             for line in reader.lines().map(|l| l.unwrap()) {
@@ -88,7 +108,10 @@ mod GiantCargoCrane {
                 stack.reverse();
             }
 
-            Self { stacks: stacks_map }
+            Self {
+                stacks: stacks_map,
+                crate_mover_model,
+            }
         }
 
         /// Move from one stack to another the n elements on top.
@@ -99,11 +122,17 @@ mod GiantCargoCrane {
 
             for _ in 0..n {
                 if let Some(v) = first_stack.pop() {
-                    values.push(v);
+                    if self.crate_mover_model == CrateMoverModel::M9000 {
+                        values.push(v);
+                    }
+                    else {
+                        values.insert(0, v);
+                    }
                 }
             }
 
             let to_stack = self.stacks.get_mut(&to).unwrap();
+
             for i in values {
                 to_stack.push(i);
             }
@@ -139,8 +168,8 @@ mod GiantCargoCrane {
 
     #[cfg(test)]
     mod tests {
-        use rstest::rstest;
         use super::get_normalized_string_from_stacks_input;
+        use rstest::rstest;
 
         #[rstest]
         #[case("    [B]             [B] [S]        ", "-B---BS--")]
@@ -158,18 +187,7 @@ mod tests {
     use rstest::rstest;
     use std::{fs::File, io::BufReader};
 
-    use crate::{make_moves, GiantCargoCrane::Stacks};
-
-    // use crate::get_normalized_string_from_stacks_input;
-
-    // #[rstest]
-    // #[case("    [B]             [B] [S]        ", "-B---BS--")]
-    // #[case("    [M]             [P] [L] [B] [J]", "-M---PLBJ")]
-    // #[case("    [T] [R] [Z]     [H] [H] [G] [C]", "-TRZ-HHGC")]
-    // #[case("[B] [L] [Q] [W] [S] [L] [J] [W] [Z]", "BLQWSLJWZ")]
-    // fn normalize_input_string(#[case] input: &str, #[case] expected: &str) {
-    //     assert_eq!(expected, get_normalized_string_from_stacks_input(input));
-    // }
+    use crate::{make_moves, giant_cargo_crane::Stacks, giant_cargo_crane::CrateMoverModel};
 
     #[rstest]
     #[case("Move 2 from 1 to 5", &[2u8,1,5])]
@@ -179,12 +197,13 @@ mod tests {
     }
 
     #[rstest]
-    #[case("./src/test_inputs/input_test_1.txt", &[&'C', &'M', &'Z'])]
-    fn should_make_moves(#[case] input: &str, #[case] expected: &[&char]) {
+    #[case("./src/test_inputs/input_test_1.txt", CrateMoverModel::M9000, &[&'C', &'M', &'Z'])]
+    #[case("./src/test_inputs/input_test_1.txt", CrateMoverModel::M9001, &[&'M', &'C', &'D'])]
+    fn should_make_moves(#[case] input: &str, #[case] crate_cover_model: CrateMoverModel, #[case] expected: &[&char]) {
         // Retrieve file.
         let file = File::open(input).unwrap();
         let mut reader = BufReader::new(file);
-        let mut stacks = Stacks::<char>::generate(&mut reader);
+        let mut stacks = Stacks::<char>::generate(&mut reader, crate_cover_model);
 
         make_moves(&mut reader, &mut stacks);
 
